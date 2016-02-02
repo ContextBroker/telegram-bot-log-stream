@@ -1,0 +1,27 @@
+{
+  "name": "telegram-bot-log-stream",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "Context Broker",
+    "Telegram",
+    "stream"
+  ],
+  "author": "Telefónica I+D",
+  "contributors": [
+    "Jesús Leganés Combarro 'piranna' <piranna@gmail.com>"
+  ],
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "mocha": "^2.4.5",
+    "nock": "^7.0.2"
+  },
+  "dependencies": {
+    "inherits": "^2.0.1",
+    "telegram-bot-api": "^1.0.0"
+  }
+}
