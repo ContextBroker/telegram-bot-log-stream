@@ -18,60 +18,104 @@ var server = nock('https://'+SERVER)
 afterEach(nock.cleanAll)
 
 
-it('receive update', function(done)
+describe('recv', function()
 {
-  var expected = 'asdf'
-
-  server.get('/bot'+TOKEN+'/getUpdates').reply(200,
+  it('receive update', function(done)
   {
-    result:
-    [
-      {
-        update_id: 0,
-        message:
+    var expected = 'asdf'
+
+    server.get('/bot'+TOKEN+'/getUpdates').reply(200,
+    {
+      result:
+      [
         {
-          chat:
+          update_id: 0,
+          message:
           {
-            id: CHAT_ID
-          },
-          text: expected
+            chat:
+            {
+              id: CHAT_ID
+            },
+            text: expected
+          }
         }
-      }
-    ]
+      ]
+    })
+
+
+    var log = TelegramLog(TOKEN, CHAT_ID)
+
+    log.on('error', done)
+    log.on('data', function(data)
+    {
+      assert.strictEqual(data, expected)
+      done()
+    })
   })
 
-
-  var log = TelegramLog(TOKEN, CHAT_ID)
-
-  log.on('error', done)
-  log.on('data', function(data)
+  it('receive update for other chat than us', function(done)
   {
-    assert.equal(data, expected)
-    done()
+    var message =
+    {
+      chat:
+      {
+        id: 'notTheChatYouAreLookingFor'
+      }
+    }
+
+    var expected = new Error('Received message for not-listening chat')
+        expected.data = message
+
+
+    server.get('/bot'+TOKEN+'/getUpdates').reply(200,
+    {
+      result:
+      [
+        {
+          update_id: 0,
+          message: message
+        }
+      ]
+    })
+
+
+    var log = TelegramLog(TOKEN, CHAT_ID)
+
+    log.on('error', function(error)
+    {
+      assert.deepEqual(error, expected)
+
+      done()
+    })
   })
 })
 
-it('send message', function(done)
+describe('send', function()
 {
-  var expected = {a: 'b'}
-
-  server.get('/bot'+TOKEN+'/getUpdates').reply(200,
+  it('send message', function(done)
   {
-    result:
-    [{
-      update_id: 0,
-      message: {chat: {id: CHAT_ID}}
-    }]
+    var expected = {a: 'b'}
+
+    server.get('/bot'+TOKEN+'/getUpdates').reply(200,
+    {
+      result:
+      [{
+        update_id: 0,
+        message: {chat: {id: CHAT_ID}}
+      }]
+    })
+    server.post('/bot'+TOKEN+'/sendMessage').reply(200, function(uri)
+    {
+      done()
+
+      return {}
+    })
+
+
+    var log = TelegramLog(TOKEN, CHAT_ID)
+
+    log.on('error', done)
+
+    log.write(expected)
   })
-  server.post('/bot'+TOKEN+'/sendMessage').reply(function(uri)
-  {
-    done()
-  })
-
-
-  var log = TelegramLog(TOKEN, CHAT_ID)
-
-  log.on('error', done)
-
-  log.write(expected)
 })
