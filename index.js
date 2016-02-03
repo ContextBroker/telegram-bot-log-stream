@@ -59,16 +59,16 @@ function TelegramLog(token, chat_id, options)
    *
    * @private
    */
-  this._write = function(chunk, _, callback)
+  this._write = function(chunk, _, done)
   {
-    if(chunk == null || chunk == '') return callback()
+    if(chunk == null || chunk == '') return done()
 
     api.sendMessage(
     {
   		chat_id: chat_id,
   		text: JSON.stringify(chunk)
   	})
-    .then(callback.bind(null, null), callback)
+    .then(done.bind(null, null), done)
   }
 }
 inherits(TelegramLog, Duplex)
