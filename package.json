@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "coveralls": "scripts/coveralls"
   },
   "keywords": [
     "Context Broker",
@@ -17,7 +18,10 @@
   ],
   "license": "AGPL-3.0",
   "devDependencies": {
+    "coveralls": "^2.11.6",
+    "jscoverage": "piranna/jscoverage",
     "mocha": "^2.4.5",
+    "mocha-lcov-reporter": "^1.0.0",
     "nock": "^7.0.2"
   },
   "dependencies": {
