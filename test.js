@@ -49,6 +49,8 @@ describe('recv', function()
     log.on('data', function(data)
     {
       assert.strictEqual(data, expected)
+
+      this.close()
       done()
     })
   })
@@ -87,6 +89,7 @@ describe('recv', function()
 
       done()
     })
+    log.resume()
   })
 })
 
