@@ -4,6 +4,38 @@ var inherits = require('inherits')
 var Telegram = require('telegram-bot-api')
 
 
+function emitError(message, data)
+{
+  var error = new Error(message)
+      error.data = data
+
+  this.emit('error', error)
+}
+
+/**
+ * Process a single received Telegram `Update` object
+ *
+ * @param {Object} update
+ *
+ * @return Boolean - more `Update` objects can be fetch
+ */
+function processUpdate(update)
+{
+  var message = update.message
+  if(message == null)
+    return emitError.call(this, 'Inline queries are not supported', update)
+
+  if(message.chat.id !== this.chat_id)
+    return emitError.call(this, 'Received message for not-listening chat', message)
+
+  var text = message.text
+  if(text == null)
+    return emitError.call(this, 'Only text messages are supported', message)
+
+  return this.push(message.text)
+}
+
+
 /**
  * Send data as messages to a Telegram chat
  *
@@ -27,6 +59,12 @@ function TelegramLog(token, chat_id, options)
   if(!token)   throw 'Missing token'
   if(!chat_id) throw 'Missing chat_id'
 
+  Object.defineProperties(this,
+  {
+    token:   {value: token},
+    chat_id: {value: chat_id}
+  })
+
   var _updatesOffset = 0
 
   var inFlight
@@ -35,43 +73,39 @@ function TelegramLog(token, chat_id, options)
   var api = new Telegram({token: token})
 
 
+  //
+  // Private functions
+  //
+
   /**
-   * Process data from an update
+   * Process a Telegram `Update` object and check if it should do more requests
    *
    * @param {Boolean} fetchMoreDate
-   * @param {Object} item
+   * @param {Object} update
    *
-   * @return Boolean
+   * @return Boolean - more `Update` objects can be fetch
    */
-  function processData(fetchMoreDate, item)
+  function processUpdate_reduce(fetchMoreDate, update)
   {
     // Account update_id as next offset
     // to avoid dublicated updates
-    if(item.update_id >= _updatesOffset)
-      _updatesOffset = item.update_id + 1
+    var update_id = update.update_id
+    if(update_id >= _updatesOffset)
+      _updatesOffset = update_id + 1
 
-    var message = item.message
-    if(message.chat.id !== chat_id)
-    {
-      var error = new Error('Received message for not-listening chat')
-          error.data = message
-
-      return self.emit('error', error)
-    }
-
-    return self.push(message.text) && fetchMoreDate
+    return processUpdate.call(self, update) && fetchMoreDate
   }
 
   /**
-   * Process a received update
+   * Process received Telegram `Update` objects and queue a new polling request
    *
    * @param {Array} data
    */
-  function gotUpdate(data)
+  function gotUpdates(data)
   {
     inFlight = false
 
-    if(data.reduce(processData, true)) setTimeout(self._read, 1000)
+    if(data.reduce(processUpdate_reduce, true)) setTimeout(self._read, 1000)
   }
 
   /**
@@ -106,7 +140,7 @@ function TelegramLog(token, chat_id, options)
       limit: limit,
       timeout: 0
     })
-    .then(gotUpdate)
+    .then(gotUpdates)
     .catch(onError)
   }
 

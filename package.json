@@ -7,6 +7,10 @@
     "test": "mocha",
     "coveralls": "scripts/coveralls"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/piranna/telegram-bot-log-stream.git"
+  },
   "keywords": [
     "Context Broker",
     "Telegram",
@@ -17,6 +21,10 @@
     "Jesús Leganés Combarro 'piranna' <piranna@gmail.com>"
   ],
   "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/piranna/telegram-bot-log-stream/issues"
+  },
+  "homepage": "https://github.com/piranna/telegram-bot-log-stream",
   "devDependencies": {
     "coveralls": "^2.11.6",
     "jscoverage": "piranna/jscoverage",
