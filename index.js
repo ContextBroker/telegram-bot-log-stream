@@ -2,7 +2,7 @@ var Duplex = require('stream').Duplex
 
 var inherits    = require('inherits')
 var Telegram    = require('telegram-bot-api')
-var WebhookPost = require('WebhookPost')
+var WebhookPost = require('webhook-post')
 
 
 /**
