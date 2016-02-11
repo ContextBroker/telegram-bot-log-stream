@@ -1,6 +1,9 @@
-var assert = require('assert')
+var assert  = require('assert')
+var parse   = require('url').parse
+var request = require('http').request
 
-var nock = require('nock')
+var decode = require('partly').Multipart.decode
+var nock   = require('nock')
 
 var TelegramLog = require('./index')
 
@@ -15,10 +18,21 @@ const CHAT_ID = 'chat_id'
 var server = nock('https://'+SERVER)
 
 
-afterEach(nock.cleanAll)
+var log
 
 
-describe('recv', function()
+afterEach(function()
+{
+  if(!nock.isDone())
+    console.error('pending mocks: %j', nock.pendingMocks())
+
+  nock.cleanAll()
+
+  log.close()
+})
+
+
+describe('recv polling', function()
 {
   it('receive update', function(done)
   {
@@ -42,11 +56,9 @@ describe('recv', function()
       ]
     })
 
-
-    var log = TelegramLog(TOKEN, CHAT_ID)
-
-    log.on('error', done)
-    log.on('data', function(data)
+    log = TelegramLog(TOKEN, CHAT_ID)
+    .on('error', done)
+    .on('data', function(data)
     {
       assert.strictEqual(data, expected)
 
@@ -81,17 +93,129 @@ describe('recv', function()
     })
 
 
-    var log = TelegramLog(TOKEN, CHAT_ID)
-
-    log.on('error', function(error)
+    log = TelegramLog(TOKEN, CHAT_ID)
+    .on('error', function(error)
     {
       assert.deepEqual(error, expected)
 
-      done()
+      this.close()
     })
-    log.resume()
+    .on('end', done)
+    .resume()
   })
 })
+
+
+describe('recv webhook', function()
+{
+  it('receive update', function(done)
+  {
+    var expected = 'asdf'
+
+    var message =
+    {
+      chat:
+      {
+        id: CHAT_ID
+      },
+      text: expected
+    }
+
+    server.post('/bot'+TOKEN+'/setWebhook')
+    .reply(200, function(uri, requestBody)
+    {
+      var boundary = this.req.headers['content-type'].split('=')[1]
+
+      var requestOptions = parse(decode(requestBody, boundary)[0].Body)
+          requestOptions.method = 'POST'
+
+      var requestData = JSON.stringify(
+      {
+        update_id: 0,
+        message: message
+      })
+
+      request(requestOptions).end(requestData)
+
+      return {}
+    })
+
+
+    var options =
+    {
+      webhook:
+      {
+        hostname: 'localhost',
+        port: 8443
+      }
+    }
+
+    log = TelegramLog(TOKEN, CHAT_ID, options)
+    .on('error', done)
+    .on('data', function(data)
+    {
+      assert.strictEqual(data, expected)
+
+      this.close()
+    })
+    .on('end', done)
+  })
+
+  it('receive update for other chat than us', function(done)
+  {
+    var message =
+    {
+      chat:
+      {
+        id: 'notTheChatYouAreLookingFor'
+      }
+    }
+
+    var expected = new Error('Received message for not-listening chat')
+        expected.data = message
+
+
+    server.post('/bot'+TOKEN+'/setWebhook')
+    .reply(200, function(uri, requestBody)
+    {
+      var boundary = this.req.headers['content-type'].split('=')[1]
+
+      var requestOptions = parse(decode(requestBody, boundary)[0].Body)
+          requestOptions.method = 'POST'
+
+      var requestData = JSON.stringify(
+      {
+        update_id: 0,
+        message: message
+      })
+
+      request(requestOptions).end(requestData)
+
+      return {}
+    })
+
+
+    var options =
+    {
+      webhook:
+      {
+        hostname: 'localhost',
+        port: 8443
+      }
+    }
+
+    log = TelegramLog(TOKEN, CHAT_ID, options)
+    .on('error', function(error)
+    {
+      assert.deepEqual(error, expected)
+
+      this.close()
+    })
+    .on('end', done)
+    .resume()
+  })
+})
+
 
 describe('send', function()
 {
@@ -99,14 +223,6 @@ describe('send', function()
   {
     var expected = {a: 'b'}
 
-    server.get('/bot'+TOKEN+'/getUpdates').reply(200,
-    {
-      result:
-      [{
-        update_id: 0,
-        message: {chat: {id: CHAT_ID}}
-      }]
-    })
     server.post('/bot'+TOKEN+'/sendMessage').reply(200, function(uri)
     {
       done()
@@ -115,9 +231,8 @@ describe('send', function()
     })
 
 
-    var log = TelegramLog(TOKEN, CHAT_ID)
-
-    log.on('error', done)
+    log = TelegramLog(TOKEN, CHAT_ID)
+    .on('error', done)
 
     log.write(expected)
   })

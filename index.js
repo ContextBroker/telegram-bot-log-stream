@@ -1,39 +1,8 @@
 var Duplex = require('stream').Duplex
 
-var inherits = require('inherits')
-var Telegram = require('telegram-bot-api')
-
-
-function emitError(message, data)
-{
-  var error = new Error(message)
-      error.data = data
-
-  this.emit('error', error)
-}
-
-/**
- * Process a single received Telegram `Update` object
- *
- * @param {Object} update
- *
- * @return Boolean - more `Update` objects can be fetch
- */
-function processUpdate(update)
-{
-  var message = update.message
-  if(message == null)
-    return emitError.call(this, 'Inline queries are not supported', update)
-
-  if(message.chat.id !== this.chat_id)
-    return emitError.call(this, 'Received message for not-listening chat', message)
-
-  var text = message.text
-  if(text == null)
-    return emitError.call(this, 'Only text messages are supported', message)
-
-  return this.push(message.text)
-}
+var inherits    = require('inherits')
+var Telegram    = require('telegram-bot-api')
+var WebhookPost = require('WebhookPost')
 
 
 /**
@@ -59,16 +28,7 @@ function TelegramLog(token, chat_id, options)
   if(!token)   throw 'Missing token'
   if(!chat_id) throw 'Missing chat_id'
 
-  Object.defineProperties(this,
-  {
-    token:   {value: token},
-    chat_id: {value: chat_id}
-  })
-
   var _updatesOffset = 0
-
-  var inFlight
-  var req
 
   var api = new Telegram({token: token})
 
@@ -76,6 +36,111 @@ function TelegramLog(token, chat_id, options)
   //
   // Private functions
   //
+
+  function emitError(message, data)
+  {
+    var error = new Error(message)
+        error.data = data
+
+    self.emit('error', error)
+  }
+
+  /**
+   * Process a single received Telegram `Update` object
+   *
+   * @param {Object} update
+   *
+   * @return Boolean - more `Update` objects can be fetch
+   */
+  function processUpdate(update)
+  {
+    // Account update_id as next offset
+    // to avoid dublicated updates
+    var update_id = update.update_id
+    if(update_id >= _updatesOffset)
+      _updatesOffset = update_id + 1
+
+    var message = update.message
+    if(message == null)
+      return emitError('Inline queries are not supported', update)
+
+    if(message.chat.id !== chat_id)
+      return emitError('Received message for not-listening chat', message)
+
+    var text = message.text
+    if(text == null)
+      return emitError('Only text messages are supported', message)
+
+    return self.push(message.text)
+  }
+
+  var end = this.push.bind(this, null)
+
+
+  //
+  // Webhook
+  //
+
+  var webhook = options.webhook
+  if(webhook)
+  {
+    var certificate = options.certificate || ''
+
+    function closeWebhook()
+    {
+      if(!webhook) return
+
+      webhook.close()
+      webhook = null
+
+      api.setWebhook({certificate: certificate}).then(end, end)
+    }
+
+    // Telegram only support ports 80, 88, 443 and 8443
+    var port
+    if(webhook) port = webhook.port
+    else        port = webhook
+
+    if(!(port === 80 || port === 88 || port === 443 || port === 8443))
+    {
+      var error = new RangeError('Port must be one of 80, 88, 443 or 8443')
+          error.port = webhook
+
+      throw error
+    }
+
+    // Create webhook
+    webhook = WebhookPost(webhook, options)
+    .on('open', function(url)
+    {
+      api
+      .setWebhook({url: url, certificate: certificate})
+      .catch(function(error)
+      {
+        self.emit('error', error)
+
+        webhook = null
+        end()
+      })
+    })
+    .on('data', function(data)
+    {
+      var update = JSON.parse(data)
+
+      // Ignore duplicated updates
+      if(update.update_id >= _updatesOffset) processUpdate(update)
+    })
+    .on('error', this.emit.bind(this, 'error'))
+    .on('end', closeWebhook)
+  }
+
+
+  //
+  // Polling
+  //
+
+  var polling
+  var inFlight
 
   /**
    * Process a Telegram `Update` object and check if it should do more requests
@@ -87,13 +152,7 @@ function TelegramLog(token, chat_id, options)
    */
   function processUpdate_reduce(fetchMoreDate, update)
   {
-    // Account update_id as next offset
-    // to avoid dublicated updates
-    var update_id = update.update_id
-    if(update_id >= _updatesOffset)
-      _updatesOffset = update_id + 1
-
-    return processUpdate.call(self, update) && fetchMoreDate
+    return processUpdate(update) && fetchMoreDate
   }
 
   /**
@@ -122,7 +181,7 @@ function TelegramLog(token, chat_id, options)
 
 
   /**
-   * Request new updates
+   * Request new updates. This will not work when using a webhook
    *
    * @private
    */
@@ -131,11 +190,13 @@ function TelegramLog(token, chat_id, options)
     var state = self._readableState
     var limit = state.highWaterMark - state.length
 
-    if(inFlight || state.ended || !limit) return
+    if(inFlight || state.ended || !limit
+    || polling === null || webhook !== undefined)
+      return
 
     inFlight = true
 
-    req = api.getUpdates({
+    polling = api.getUpdates({
       offset: _updatesOffset,
       limit: limit,
       timeout: 0
@@ -144,8 +205,13 @@ function TelegramLog(token, chat_id, options)
     .catch(onError)
   }
 
+
+  //
+  // Duplex API
+  //
+
   /**
-   * Write a streamed row on the worksheet
+   * Write a data message
    *
    * @param {Object} chunk
    * @param {*} _ - ignored
@@ -165,18 +231,22 @@ function TelegramLog(token, chat_id, options)
     .then(done.bind(null, null), done)
   }
 
+
+  //
+  // Public API
+  //
+
   /**
    * Close the connection and stop emitting more data updates
    */
   this.close = function()
   {
-    if(req)
+    if(webhook !== undefined) return closeWebhook()
+    if(polling)
     {
-//      req.abort()
-      req = null
+      polling.then(end, end)
+      polling = null
     }
-
-    this.push(null)
   }
 }
 inherits(TelegramLog, Duplex)

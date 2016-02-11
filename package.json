@@ -30,7 +30,9 @@
     "jscoverage": "piranna/jscoverage",
     "mocha": "^2.4.5",
     "mocha-lcov-reporter": "^1.0.0",
-    "nock": "^7.0.2"
+    "nock": "^7.0.2",
+    "partly": "^1.0.0",
+    "webhook-post": "^0.0.0"
   },
   "dependencies": {
     "inherits": "^2.0.1",
