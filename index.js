@@ -13,6 +13,15 @@ var WebhookPost = require('webhook-post')
  * @param {string} token
  * @param {string} chat_id
  * @param {Object} [options]
+ * @param {string|Object|80|88|443|8443} [options.webhook={}]
+ * @param {string} [options.webhook.hostname='0.0.0.0']
+ * @param {80|88|443|8443} [options.webhook.port]
+ * @param {string} [options.webhook.certificate='']
+ * @param {string} [options.certificate='']
+ *
+ * @emits TelegramLog#data
+ * @emits TelegramLog#error
+ * @emits Readable#end
  */
 function TelegramLog(token, chat_id, options)
 {
@@ -39,6 +48,10 @@ function TelegramLog(token, chat_id, options)
   // Private functions
   //
 
+  /**
+   * @param {string} message
+   * @param {*} data
+   */
   function emitError(message, data)
   {
     var error = new Error(message)
@@ -62,6 +75,7 @@ function TelegramLog(token, chat_id, options)
     if(update_id >= _updatesOffset)
       _updatesOffset = update_id + 1
 
+    // Check the update is from a text message from our chat
     var message = update.message
     if(message == null)
       return emitError('Inline queries are not supported', update)
@@ -73,6 +87,7 @@ function TelegramLog(token, chat_id, options)
     if(text == null)
       return emitError('Only text messages are supported', message)
 
+    // Everything is allright, push the data
     return self.push(message.text)
   }
 
@@ -86,6 +101,9 @@ function TelegramLog(token, chat_id, options)
   var webhook = options.webhook
   if(webhook)
   {
+    /**
+     * Close the webhook and set it as finished
+     */
     function closeWebhook()
     {
       webhook.close()
@@ -260,6 +278,19 @@ function TelegramLog(token, chat_id, options)
   }
 }
 inherits(TelegramLog, Duplex)
+
+
+/**
+ * @event TelegramLog#data
+ *
+ * @type {string}
+ */
+
+/**
+ * @event TelegramLog#error
+ *
+ * @type {Error}
+ */
 
 
 module.exports = TelegramLog
