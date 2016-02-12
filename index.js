@@ -8,6 +8,8 @@ var WebhookPost = require('webhook-post')
 /**
  * Send data as messages to a Telegram chat
  *
+ * @class
+ *
  * @param {string} token
  * @param {string} chat_id
  * @param {Object} [options]
