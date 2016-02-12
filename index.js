@@ -90,12 +90,8 @@ function TelegramLog(token, chat_id, options)
 
     function closeWebhook()
     {
-      if(!webhook) return
-
       webhook.close()
       webhook = null
-
-      api.setWebhook({certificate: certificate}).then(end, end)
     }
 
     // Telegram only support ports 80, 88, 443 and 8443
@@ -133,7 +129,13 @@ function TelegramLog(token, chat_id, options)
       if(update.update_id >= _updatesOffset) processUpdate(update)
     })
     .on('error', this.emit.bind(this, 'error'))
-    .on('end', closeWebhook)
+    .on('end', function()
+    {
+      if(!webhook) return end()
+      webhook = null
+
+      api.setWebhook({certificate: certificate}).then(end, end)
+    })
   }
 
 
@@ -243,7 +245,12 @@ function TelegramLog(token, chat_id, options)
    */
   this.close = function()
   {
-    if(webhook !== undefined) return closeWebhook()
+    if(webhook === null) return
+
+    if(webhook)
+      return api.setWebhook({certificate: certificate})
+      .then(closeWebhook, closeWebhook)
+
     if(polling)
     {
       polling.then(end, end)
