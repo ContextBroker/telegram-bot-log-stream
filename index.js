@@ -86,26 +86,27 @@ function TelegramLog(token, chat_id, options)
   var webhook = options.webhook
   if(webhook)
   {
-    var certificate = options.certificate || ''
-
     function closeWebhook()
     {
       webhook.close()
       webhook = null
     }
 
-    // Telegram only support ports 80, 88, 443 and 8443
-    var port
-    if(webhook) port = webhook.port
-    else        port = webhook
-
-    if(!(port === 80 || port === 88 || port === 443 || port === 8443))
+    if(typeof webhook !== 'string')
     {
-      var error = new RangeError('Port must be one of 80, 88, 443 or 8443')
-          error.port = webhook
+      // Telegram only support ports 80, 88, 443 and 8443
+      var port = webhook.port || webhook
 
-      throw error
+      if(port !== 80 && port !== 88 && port !== 443 && port !== 8443)
+      {
+        var error = new RangeError('Port must be one of 80, 88, 443 or 8443')
+            error.port = port
+
+        throw error
+      }
     }
+
+    var certificate = webhook.certificate || options.certificate || ''
 
     // Create webhook
     webhook = WebhookPost(webhook, options)
