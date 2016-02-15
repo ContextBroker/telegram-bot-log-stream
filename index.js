@@ -30,6 +30,14 @@ function TelegramLog(token, chat_id, options)
 
   var self = this
 
+  if(token.constructor.name === 'Object')
+  {
+    chat_id = token.chat_id
+    options = token.options
+
+    token = token.token
+  }
+
   options = options || {}
   options.objectMode = true
 
